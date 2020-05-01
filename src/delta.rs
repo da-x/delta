@@ -87,29 +87,45 @@ where
             painter.paint_buffered_lines();
             state = State::FileMeta;
             painter.set_syntax(parse::get_file_extension_from_diff_line(&line));
+            if config.file_style == cli::SectionStyle::Plain {
+                painter.emit()?;
+                handle_file_meta_header_line_plain(&mut painter, &raw_line, config)?;
+                continue;
+            }
         } else if (state == State::FileMeta || source == Source::DiffUnified)
             // FIXME: For unified diff input, removal ("-") of a line starting with "--" (e.g. a
             // Haskell or SQL comment) will be confused with the "---" file metadata marker.
             && (line.starts_with("--- ") || line.starts_with("rename from "))
-            && config.file_style != cli::SectionStyle::Plain
         {
-            if source == Source::DiffUnified {
-                state = State::FileMeta;
-                painter.set_syntax(parse::get_file_extension_from_marker_line(&line));
+            if config.file_style != cli::SectionStyle::Plain {
+                if source == Source::DiffUnified {
+                    state = State::FileMeta;
+                    painter.set_syntax(parse::get_file_extension_from_marker_line(&line));
+                }
+                minus_file = parse::get_file_path_from_file_meta_line(&line, source == Source::GitDiff);
+            } else {
+                painter.emit()?;
+                handle_file_meta_header_line_plain(&mut painter, &raw_line, config)?;
+                continue;
             }
-            minus_file = parse::get_file_path_from_file_meta_line(&line, source == Source::GitDiff);
-        } else if (line.starts_with("+++ ") || line.starts_with("rename to "))
-            && config.file_style != cli::SectionStyle::Plain
+        } else if (state == State::FileMeta || source == Source::DiffUnified) &&
+            line.starts_with("+++ ") || line.starts_with("rename to ")
         {
-            plus_file = parse::get_file_path_from_file_meta_line(&line, source == Source::GitDiff);
-            painter.emit()?;
-            handle_file_meta_header_line(
-                &mut painter,
-                &minus_file,
-                &plus_file,
-                config,
-                source == Source::DiffUnified,
-            )?;
+            if config.file_style != cli::SectionStyle::Plain {
+                plus_file = parse::get_file_path_from_file_meta_line(&line, source == Source::GitDiff);
+                painter.emit()?;
+                handle_file_meta_header_line(
+                    &mut painter,
+                    &minus_file,
+                    &plus_file,
+                    config,
+                    source == Source::DiffUnified,
+                )?;
+            } else {
+                painter.emit()?;
+                handle_file_meta_header_line_plain(&mut painter, &raw_line, config)?;
+                continue;
+            }
         } else if line.starts_with("@@") {
             state = State::HunkMeta;
             painter.set_highlighter();
@@ -135,11 +151,13 @@ where
 
             state = State::FileMeta;
             painter.paint_buffered_lines();
+            painter.emit()?;
             if config.file_style != cli::SectionStyle::Plain {
-                painter.emit()?;
                 handle_generic_file_meta_header_line(&mut painter, &raw_line, config)?;
-                continue;
+            } else {
+                handle_file_meta_header_line_plain(&mut painter, &raw_line, config)?;
             }
+            continue;
         } else if state.is_in_hunk() {
             // A true hunk line should start with one of: '+', '-', ' '. However, handle_hunk_line
             // handles all lines until the state machine transitions away from the hunk states.
@@ -159,6 +177,12 @@ where
                         continue;
                     }
                 }
+            }
+        } else if state == State::FileMeta || source == Source::DiffUnified {
+            if config.file_style == cli::SectionStyle::Plain {
+                painter.emit()?;
+                handle_file_meta_header_line_plain(&mut painter, &raw_line, config)?;
+                continue;
             }
         }
 
@@ -224,6 +248,22 @@ fn handle_commit_meta_header_line(
     Ok(())
 }
 
+fn handle_file_meta_header_line_plain(
+    painter: &mut Painter,
+    line: &str,
+    config: &Config,
+) -> std::io::Result<()> {
+    draw::write_colored(
+        painter.writer,
+        line,
+        config.terminal_width,
+        config.commit_color,
+        config.file_bg,
+        true,
+        config.true_color,
+    )
+}
+
 /// Construct file change line from minus and plus file and write with FileMeta styling.
 fn handle_file_meta_header_line(
     painter: &mut Painter,
@@ -253,7 +293,7 @@ fn handle_generic_file_meta_header_line(
         &paint::paint_text_foreground(line, config.file_color, config.true_color),
         config.terminal_width,
         config.file_color,
-        None,
+        config.file_bg,
         false,
         config.true_color,
     )?;

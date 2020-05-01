@@ -134,6 +134,10 @@ pub struct Opt {
     /// Color for the file section of git output.
     pub file_color: String,
 
+    #[structopt(long = "file-background")]
+    /// Optional background color for the file section of git output.
+    pub file_bg: Option<String>,
+
     #[structopt(long = "hunk-style", default_value = "box")]
     /// Formatting style for the hunk-marker section of git output. Options
     /// are: plain, box.
