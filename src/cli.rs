@@ -116,6 +116,15 @@ pub struct Opt {
     /// Color for the commit section of git output.
     pub commit_color: String,
 
+    #[structopt(long = "commit-meta-header-background")]
+    /// Optional background color for the first line of the commit header.
+    pub commit_meta_header_bg: Option<String>,
+
+    #[structopt(long = "commit-meta-other-background")]
+    /// Optional background color for the other lines of the commit header. Otherwise,
+    /// `commit-meta-header-bg` is used.
+    pub commit_meta_other_bg: Option<String>,
+
     #[structopt(long = "file-style", default_value = "underline")]
     /// Formatting style for the file section of git output. Options
     /// are: plain, box, underline.

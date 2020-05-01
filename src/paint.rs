@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use ansi_term;
 use syntect::easy::HighlightLines;
-use syntect::highlighting::{Color, Style, StyleModifier};
+use syntect::highlighting::{Color, Style, StyleModifier, FontStyle};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
 use crate::bat::assets::HighlightingAssets;
@@ -246,6 +246,32 @@ pub fn paint_text(text: &str, style: Style, output_buffer: &mut String, true_col
 /// Return text together with shell escape codes specifying the foreground color.
 pub fn paint_text_foreground(text: &str, color: Color, true_color: bool) -> String {
     to_ansi_color(color, true_color).paint(text).to_string()
+}
+
+/// Return text together with shell escape codes specifying the foreground and
+/// background colors, with background color extending to the end of the terminal
+/// line.
+pub fn paint_whole_line(text: &str, color: Color, bg: Option<Color>, true_color: bool) -> String {
+    let mut ansi_strings = Vec::new();
+    if let Some(bg) = bg {
+        let style = Style {
+            background: bg,
+            foreground: color,
+            font_style: FontStyle::empty(),
+        };
+        let background_ansi_style = to_ansi_style(style, true_color);
+        ansi_strings.push(background_ansi_style.paint(text));
+        let mut line = ansi_term::ANSIStrings(&ansi_strings).to_string();
+        // HACK: How to properly incorporate the ANSI_CSI_ERASE_IN_LINE into ansi_strings?
+        if line.to_lowercase().ends_with(&ANSI_SGR_RESET.to_lowercase()) {
+            line.truncate(line.len() - ANSI_SGR_RESET.len());
+        }
+        line.push_str(ANSI_CSI_ERASE_IN_LINE);
+        line.push_str(ANSI_SGR_RESET);
+        line
+    } else {
+        to_ansi_color(color, true_color).paint(text).to_string()
+    }
 }
 
 // See

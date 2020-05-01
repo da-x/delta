@@ -14,6 +14,7 @@ pub fn write_boxed(
     text: &str,
     _line_width: usize, // ignored
     color: Color,
+    _bg: Option<Color>,
     heavy: bool,
     true_color: bool,
 ) -> std::io::Result<()> {
@@ -39,6 +40,7 @@ pub fn write_boxed_with_line(
     text: &str,
     line_width: usize,
     color: Color,
+    _bg: Option<Color>,
     heavy: bool,
     true_color: bool,
 ) -> std::io::Result<()> {
@@ -64,6 +66,7 @@ pub fn write_underlined(
     text: &str,
     line_width: usize,
     color: Color,
+    _bg: Option<Color>,
     heavy: bool,
     true_color: bool,
 ) -> std::io::Result<()> {
@@ -74,6 +77,23 @@ pub fn write_underlined(
     )?;
     write_horizontal_line(writer, line_width - 1, color, heavy, true_color)?;
     write!(writer, "\n")?;
+    Ok(())
+}
+
+pub fn write_colored(
+    writer: &mut dyn Write,
+    text: &str,
+    _line_width: usize,
+    color: Color,
+    bg: Option<Color>,
+    _heavy: bool,
+    true_color: bool,
+) -> std::io::Result<()> {
+    writeln!(
+        writer,
+        "{}",
+        paint::paint_whole_line(&strip_ansi_codes(text), color, bg, true_color)
+    )?;
     Ok(())
 }
 

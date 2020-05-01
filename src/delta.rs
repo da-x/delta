@@ -12,8 +12,15 @@ use crate::parse;
 use crate::style;
 
 #[derive(Debug, PartialEq)]
+pub enum CommitMetaState {
+    Header,
+    Message,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum State {
-    CommitMeta, // In commit metadata section
+    CommitMeta(CommitMetaState),
+                // In commit metadata section
     FileMeta,   // In diff metadata section, between (possible) commit metadata and first hunk
     HunkMeta,   // In hunk metadata line
     HunkZero,   // In hunk; unchanged line
@@ -72,12 +79,10 @@ where
         }
         if line.starts_with("commit ") {
             painter.paint_buffered_lines();
-            state = State::CommitMeta;
-            if config.commit_style != cli::SectionStyle::Plain {
-                painter.emit()?;
-                handle_commit_meta_header_line(&mut painter, &raw_line, config)?;
-                continue;
-            }
+            state = State::CommitMeta(CommitMetaState::Header);
+            painter.emit()?;
+            handle_commit_meta_header_line(&mut painter, &raw_line, config, true)?;
+            continue;
         } else if line.starts_with("diff ") {
             painter.paint_buffered_lines();
             state = State::FileMeta;
@@ -143,6 +148,20 @@ where
             state = handle_hunk_line(&mut painter, &line, &raw_line, state, config);
             painter.emit()?;
             continue;
+        } else if let State::CommitMeta(CommitMetaState::Header) = state {
+            if line.trim() == "" {
+                state = State::CommitMeta(CommitMetaState::Message);
+            } else {
+                match config.commit_style {
+                    cli::SectionStyle::Box |
+                        cli::SectionStyle::Underline => {},
+                    cli::SectionStyle::Plain => {
+                        handle_commit_meta_header_line(
+                            &mut painter, &raw_line, config, false)?;
+                        continue;
+                    }
+                }
+            }
         }
 
         if state == State::FileMeta && config.file_style != cli::SectionStyle::Plain {
@@ -181,17 +200,24 @@ fn handle_commit_meta_header_line(
     painter: &mut Painter,
     line: &str,
     config: &Config,
+    first_line: bool,
 ) -> std::io::Result<()> {
     let draw_fn = match config.commit_style {
         cli::SectionStyle::Box => draw::write_boxed_with_line,
         cli::SectionStyle::Underline => draw::write_underlined,
-        cli::SectionStyle::Plain => panic!(),
+        cli::SectionStyle::Plain => draw::write_colored,
     };
     draw_fn(
         painter.writer,
         line,
         config.terminal_width,
         config.commit_color,
+        if first_line {
+            config.commit_meta_header_bg
+        } else {
+            config.commit_meta_other_bg
+                .or_else(|| config.commit_meta_header_bg)
+        },
         true,
         config.true_color,
     )?;
@@ -227,6 +253,7 @@ fn handle_generic_file_meta_header_line(
         &paint::paint_text_foreground(line, config.file_color, config.true_color),
         config.terminal_width,
         config.file_color,
+        None,
         false,
         config.true_color,
     )?;
@@ -270,6 +297,7 @@ fn handle_hunk_meta_line(
             &painter.output_buffer,
             config.terminal_width,
             config.hunk_color,
+            None,
             false,
             config.true_color,
         )?;

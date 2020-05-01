@@ -23,6 +23,8 @@ pub struct Config<'a> {
     pub highlight_removed: bool,
     pub commit_style: cli::SectionStyle,
     pub commit_color: Color,
+    pub commit_meta_header_bg: Option<Color>,
+    pub commit_meta_other_bg: Option<Color>,
     pub file_style: cli::SectionStyle,
     pub file_color: Color,
     pub hunk_style: cli::SectionStyle,
@@ -143,6 +145,10 @@ pub fn get_config<'a>(
         plus_line_marker,
         commit_style,
         commit_color: color_from_rgb_or_ansi_code(&opt.commit_color),
+        commit_meta_header_bg:
+            opt.commit_meta_header_bg.as_ref().map(|x| color_from_rgb_or_ansi_code(&x)),
+        commit_meta_other_bg:
+            opt.commit_meta_other_bg.as_ref().map(|x| color_from_rgb_or_ansi_code(&x)),
         file_style,
         file_color: color_from_rgb_or_ansi_code(&opt.file_color),
         hunk_style,
