@@ -143,6 +143,10 @@ pub struct Opt {
     /// Color for the hunk-marker section of git output.
     pub hunk_color: String,
 
+    #[structopt(long = "hunk-background")]
+    /// Optional background color for the hunk-marker section of git output.
+    pub hunk_bg: Option<String>,
+
     /// Use --width=variable to extend background colors to the end of each line only. Otherwise
     /// background colors extend to the full terminal width.
     #[structopt(short = "w", long = "width")]

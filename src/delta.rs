@@ -113,11 +113,9 @@ where
         } else if line.starts_with("@@") {
             state = State::HunkMeta;
             painter.set_highlighter();
-            if config.hunk_style != cli::SectionStyle::Plain {
-                painter.emit()?;
-                handle_hunk_meta_line(&mut painter, &line, config)?;
-                continue;
-            }
+            painter.emit()?;
+            handle_hunk_meta_line(&mut painter, &line, config)?;
+            continue;
         } else if source == Source::DiffUnified && line.starts_with("Only in ")
             || line.starts_with("Submodule ")
             || line.starts_with("Binary files ")
@@ -169,6 +167,8 @@ where
             continue;
         } else {
             painter.emit()?;
+
+            // For debugging: writeln!(painter.writer, "{:?}", state)?;
             writeln!(painter.writer, "{}", raw_line)?;
         }
     }
@@ -268,7 +268,18 @@ fn handle_hunk_meta_line(
     let draw_fn = match config.hunk_style {
         cli::SectionStyle::Box => draw::write_boxed,
         cli::SectionStyle::Underline => draw::write_underlined,
-        cli::SectionStyle::Plain => panic!(),
+        cli::SectionStyle::Plain => {
+            draw::write_colored(
+                painter.writer,
+                line,
+                config.terminal_width,
+                config.hunk_color,
+                config.hunk_bg,
+                false,
+                config.true_color,
+            )?;
+            return Ok(());
+        },
     };
     let (raw_code_fragment, line_number) = parse::parse_hunk_metadata(&line);
     let code_fragment = prepare(raw_code_fragment, false, config);
@@ -297,7 +308,7 @@ fn handle_hunk_meta_line(
             &painter.output_buffer,
             config.terminal_width,
             config.hunk_color,
-            None,
+            config.hunk_bg,
             false,
             config.true_color,
         )?;
