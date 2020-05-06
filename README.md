@@ -350,3 +350,4 @@ All delta color options work the same way. There are three ways to specify a col
   https://github.com/trishume/syntect<br>
   https://github.com/sharkdp/bat<br>
   https://github.com/so-fancy/diff-so-fancy
+
