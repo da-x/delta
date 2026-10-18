@@ -136,7 +136,10 @@ pub fn set_options(
             blame_timestamp_output_format,
             color_only,
             config,
+            commit_color,
             commit_decoration_style,
+            commit_meta_header_background,
+            commit_meta_other_background,
             commit_regex,
             commit_style,
             default_language,
@@ -151,6 +154,8 @@ pub fn set_options(
             file_regex_replacement,
             right_arrow,
             hunk_label,
+            file_background,
+            file_color,
             file_style,
             grep_context_line_style,
             grep_file_style,
@@ -164,7 +169,10 @@ pub fn set_options(
             hunk_header_decoration_style,
             hunk_header_file_style,
             hunk_header_line_number_style,
+            hunk_background,
+            hunk_color,
             hunk_header_style,
+            highlight_removed,
             hyperlinks,
             hyperlinks_commit_link_format,
             hyperlinks_file_link_format,
@@ -250,6 +258,23 @@ pub fn set_options(
         opt.file_decoration_style = "none".to_string();
         opt.commit_decoration_style = "none".to_string();
         opt.hunk_header_decoration_style = "none".to_string();
+    }
+
+    // --highlight-removed is the pre-style-string spelling of "syntax-highlight minus lines".
+    // Apply it after features and git config have filled the minus styles, and only when the
+    // user did not pass an explicit minus style on the command line.
+    if opt.highlight_removed {
+        let prefix = "normal ";
+        if !config::user_supplied_option("minus_style", arg_matches)
+            && opt.minus_style.starts_with(prefix)
+        {
+            opt.minus_style = format!("syntax {}", &opt.minus_style[prefix.len()..]);
+        }
+        if !config::user_supplied_option("minus_emph_style", arg_matches)
+            && opt.minus_emph_style.starts_with(prefix)
+        {
+            opt.minus_emph_style = format!("syntax {}", &opt.minus_emph_style[prefix.len()..]);
+        }
     }
 }
 

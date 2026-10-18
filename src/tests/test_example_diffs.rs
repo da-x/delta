@@ -1152,6 +1152,135 @@ src/align.rs
         assert!(output.contains("@@ -71,11 +71,8 @@ impl<'a> Alignment<'a> {"));
     }
 
+    /// Flags used by `delta-configured`: color the preserved header lines and fill backgrounds.
+    #[test]
+    fn test_header_background_colors_in_color_only_mode() {
+        let config = integration_test_utils::make_config_from_args(&[
+            "--color-only",
+            "--true-color",
+            "always",
+            "--highlight-removed",
+            "--commit-color",
+            "#ffffff",
+            "--commit-meta-header-background",
+            "#880088",
+            "--commit-meta-other-background",
+            "#440044",
+            "--file-color",
+            "#cccccc",
+            "--file-background",
+            "#222222",
+            "--hunk-color",
+            "#999999",
+            "--hunk-background",
+            "#000088",
+        ]);
+        assert!(config.true_color);
+        assert!(config.minus_style.is_syntax_highlighted);
+        assert!(config.minus_emph_style.is_syntax_highlighted);
+        let output = integration_test_utils::run_delta(GIT_DIFF_SINGLE_HUNK, &config);
+
+        ansi_test_utils::assert_line_has_style(
+            &output,
+            0,
+            "commit 94907c0f136f46dc46ffae2dc92dca9af7eb7c2e",
+            "#ffffff #880088",
+            &config,
+        );
+        ansi_test_utils::assert_line_has_style(
+            &output,
+            1,
+            "Author: Dan Davison <dandavison7@gmail.com>",
+            "#ffffff #440044",
+            &config,
+        );
+        ansi_test_utils::assert_line_has_style(
+            &output,
+            2,
+            "Date:   Thu May 14 11:13:17 2020 -0400",
+            "#ffffff #440044",
+            &config,
+        );
+        ansi_test_utils::assert_line_has_no_color(&output, 3, "");
+        ansi_test_utils::assert_line_has_no_color(&output, 4, "    rustfmt");
+        ansi_test_utils::assert_line_has_style(
+            &output,
+            6,
+            "diff --git a/src/align.rs b/src/align.rs",
+            "#cccccc #222222",
+            &config,
+        );
+        ansi_test_utils::assert_line_has_style(
+            &output,
+            8,
+            "--- a/src/align.rs",
+            "#cccccc #222222",
+            &config,
+        );
+        ansi_test_utils::assert_line_has_style(
+            &output,
+            9,
+            "+++ b/src/align.rs",
+            "#cccccc #222222",
+            &config,
+        );
+        ansi_test_utils::assert_line_has_style(
+            &output,
+            10,
+            "@@ -71,11 +71,8 @@ impl<'a> Alignment<'a> {",
+            "#999999 #000088",
+            &config,
+        );
+        for line_number in [0, 1, 6, 8, 10] {
+            let line = output.lines().nth(line_number).unwrap();
+            assert!(
+                line.contains(ansi::ANSI_CSI_CLEAR_TO_EOL),
+                "line {} should fill its background: {:?}",
+                line_number,
+                line
+            );
+        }
+
+        let stripped = strip_ansi_codes(&output);
+        let input_lines: Vec<&str> = GIT_DIFF_SINGLE_HUNK.lines().collect();
+        let output_lines: Vec<&str> = stripped.lines().collect();
+        assert_eq!(input_lines, output_lines);
+    }
+
+    #[test]
+    fn test_header_background_does_not_fill_when_width_is_variable() {
+        let config = integration_test_utils::make_config_from_args(&[
+            "--color-only",
+            "--width",
+            "variable",
+            "--file-color",
+            "red",
+            "--file-background",
+            "blue",
+        ]);
+        let output = integration_test_utils::run_delta(GIT_DIFF_SINGLE_HUNK, &config);
+        ansi_test_utils::assert_line_has_style(
+            &output,
+            8,
+            "--- a/src/align.rs",
+            "red blue",
+            &config,
+        );
+        let line = output.lines().nth(8).unwrap();
+        assert!(!line.contains(ansi::ANSI_CSI_CLEAR_TO_EOL));
+    }
+
+    #[test]
+    fn test_highlight_removed_does_not_override_an_explicit_minus_style() {
+        let config = integration_test_utils::make_config_from_args(&[
+            "--highlight-removed",
+            "--minus-style",
+            "red",
+        ]);
+        assert!(!config.minus_style.is_syntax_highlighted);
+        assert!(config.minus_emph_style.is_syntax_highlighted);
+    }
+
     #[test]
     fn test_hunk_header_style_with_file() {
         let config = integration_test_utils::make_config_from_args(&[

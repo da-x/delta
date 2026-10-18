@@ -4,6 +4,8 @@ use super::draw;
 use crate::delta::{State, StateMachine};
 use crate::features;
 use crate::features::diff_line_metadata::{commit_id, write_with_header_osc};
+use crate::paint::Painter;
+use crate::style::DecorationStyle;
 
 impl StateMachine<'_> {
     #[inline]
@@ -19,7 +21,10 @@ impl StateMachine<'_> {
         self.painter.paint_buffered_minus_and_plus_lines();
         self.handle_pending_line_with_diff_name()?;
         self.state = State::CommitMeta;
-        if self.should_handle() {
+        self.commit_meta_past_header = false;
+        let want_paint =
+            self.config.commit_color.is_some() || self.config.commit_meta_header_bg.is_some();
+        if self.should_handle() || want_paint {
             self.painter.emit()?;
             self._handle_commit_meta_header_line()?;
             handled_line = true
@@ -37,11 +42,31 @@ impl StateMachine<'_> {
     }
 
     fn _handle_commit_meta_header_line(&mut self) -> std::io::Result<()> {
-        if self.config.commit_style.is_omitted {
+        let want_paint =
+            self.config.commit_color.is_some() || self.config.commit_meta_header_bg.is_some();
+        if self.config.commit_style.is_omitted && !want_paint {
             return Ok(());
         }
+        let style = self
+            .config
+            .commit_style
+            .with_overlay_colors(self.config.commit_color, self.config.commit_meta_header_bg);
+        // Color-only (and any other no-decoration style) keeps the commit hash line intact and,
+        // when a background was requested, fills that background to the terminal edge.
+        if want_paint && matches!(style.decoration_style, DecorationStyle::NoDecoration) {
+            let painted = Painter::paint_preserved_line(
+                &self.line,
+                style,
+                self.config.commit_meta_header_bg.is_some()
+                    && self.config.background_color_extends_to_terminal_width,
+            );
+            let commit_osc = self.commit_osc();
+            return write_with_header_osc(self.painter.writer, &commit_osc, |w| {
+                writeln!(w, "{painted}")
+            });
+        }
         let (mut draw_fn, pad, decoration_ansi_term_style) =
-            draw::get_draw_function(self.config.commit_style.decoration_style);
+            draw::get_draw_function(style.decoration_style);
         let (formatted_line, formatted_raw_line) = if self.config.hyperlinks {
             (
                 features::hyperlinks::format_commit_line_with_osc8_commit_hyperlink(
@@ -68,7 +93,7 @@ impl StateMachine<'_> {
                 &format!("{}{}", formatted_raw_line, if pad { " " } else { "" }),
                 "",
                 &config.decorations_width,
-                config.commit_style,
+                style,
                 decoration_ansi_term_style,
             )
         })

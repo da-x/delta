@@ -103,6 +103,12 @@ pub struct Opt {
     /// intended for other tools that use delta.
     pub color_only: bool,
 
+    #[arg(long = "highlight-removed")]
+    /// Apply syntax highlighting to removed lines.
+    ///
+    /// The default is to apply syntax highlighting to unchanged and new lines only.
+    pub highlight_removed: bool,
+
     #[arg(long = "config", default_value = "", value_name = "PATH", value_hint = ValueHint::FilePath)]
     /// Load the config file at PATH instead of ~/.gitconfig.
     pub config: String,
@@ -132,6 +138,21 @@ pub struct Opt {
     /// See STYLES section. The style 'omit' can be used to remove the commit hash line from the
     /// output.
     pub commit_style: String,
+
+    #[arg(long = "commit-color", value_name = "COLOR")]
+    /// Foreground color for commit-header lines.
+    pub commit_color: Option<String>,
+
+    #[arg(long = "commit-meta-header-background", value_name = "COLOR")]
+    /// Background color for the first line of the commit header.
+    pub commit_meta_header_background: Option<String>,
+
+    #[arg(long = "commit-meta-other-background", value_name = "COLOR")]
+    /// Background color for the other lines of the commit header.
+    ///
+    /// Falls back to --commit-meta-header-background. Painting stops at the first blank line,
+    /// so the commit message is left unchanged.
+    pub commit_meta_other_background: Option<String>,
 
     #[arg(long = "dark")]
     /// Use default colors appropriate for a dark terminal background.
@@ -277,6 +298,14 @@ pub struct Opt {
     /// See STYLES section. The style 'omit' can be used to remove the file section from the output.
     pub file_style: String,
 
+    #[arg(long = "file-color", value_name = "COLOR")]
+    /// Foreground color for file-header lines.
+    pub file_color: Option<String>,
+
+    #[arg(long = "file-background", value_name = "COLOR")]
+    /// Background color for file-header lines.
+    pub file_background: Option<String>,
+
     #[arg(long = "file-transformation", value_name = "SED_CMD")]
     /// Sed-style command transforming file paths for display.
     pub file_regex_replacement: Option<String>,
@@ -399,6 +428,14 @@ pub struct Opt {
     /// file path, and number of first hunk line, in the hunk header. The style 'omit' can be used
     /// to remove the hunk header section from the output.
     pub hunk_header_style: String,
+
+    #[arg(long = "hunk-color", value_name = "COLOR")]
+    /// Foreground color for hunk-header lines.
+    pub hunk_color: Option<String>,
+
+    #[arg(long = "hunk-background", value_name = "COLOR")]
+    /// Background color for hunk-header lines.
+    pub hunk_background: Option<String>,
 
     #[arg(long = "hunk-label", default_value = "", value_name = "STRING")]
     /// Text to display before a hunk header.

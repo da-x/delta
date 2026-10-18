@@ -190,7 +190,32 @@ impl StateMachine<'_> {
             .as_ref()
             .map_or(String::new(), |md| md.osc_for_hunk_header());
 
-        if self.config.hunk_header_style.is_raw {
+        let have_hunk_colors = self.config.hunk_color.is_some() || self.config.hunk_bg.is_some();
+        if have_hunk_colors
+            && (self.config.hunk_header_style.is_raw || self.config.color_only)
+            && matches!(
+                self.config.hunk_header_style.decoration_style,
+                DecorationStyle::NoDecoration
+            )
+        {
+            // Keep the @@ line itself. color-only and raw both require that, and a separate
+            // hunk background cannot be expressed by rewriting the header into a code fragment.
+            let style = self
+                .config
+                .hunk_header_style
+                .with_overlay_colors(self.config.hunk_color, self.config.hunk_bg);
+            let painted = Painter::paint_preserved_line(
+                line,
+                style,
+                self.config.hunk_bg.is_some()
+                    && self.config.background_color_extends_to_terminal_width,
+            );
+            crate::features::diff_line_metadata::write_with_header_osc(
+                self.painter.writer,
+                &h_osc,
+                |w| writeln!(w, "{painted}"),
+            )?;
+        } else if self.config.hunk_header_style.is_raw {
             write_hunk_header_raw(&mut self.painter, line, raw_line, &h_osc, self.config)?;
         } else if self.config.hunk_header_style.is_omitted {
             write!(self.painter.writer, "{h_osc}")?;
@@ -454,9 +479,12 @@ fn write_to_output_buffer(
         );
     }
     if !line.is_empty() {
+        let hunk_style = config
+            .hunk_header_style
+            .with_overlay_colors(config.hunk_color, config.hunk_bg);
         painter.syntax_highlight_and_paint_line(
             &line,
-            style_sections.unwrap_or(StyleSectionSpecifier::Style(config.hunk_header_style)),
+            style_sections.unwrap_or(StyleSectionSpecifier::Style(hunk_style)),
             delta::State::HunkHeader(
                 DiffType::Unified,
                 ParsedHunkHeader::default(),

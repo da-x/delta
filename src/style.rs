@@ -94,6 +94,29 @@ impl Style {
         }
     }
 
+    /// Replace foreground and/or background when the caller set one.
+    ///
+    /// A raw or omitted style would otherwise skip painting, so any explicit color forces the
+    /// style to be drawn. Other attributes (bold, syntax, decoration) stay as they were.
+    pub fn with_overlay_colors(
+        mut self,
+        foreground: Option<ansi_term::Color>,
+        background: Option<ansi_term::Color>,
+    ) -> Self {
+        if foreground.is_none() && background.is_none() {
+            return self;
+        }
+        if let Some(foreground) = foreground {
+            self.ansi_term_style.foreground = Some(foreground);
+        }
+        if let Some(background) = background {
+            self.ansi_term_style.background = Some(background);
+        }
+        self.is_raw = false;
+        self.is_omitted = false;
+        self
+    }
+
     pub fn paint<'a, I, S: 'a + ToOwned + ?Sized>(
         self,
         input: I,

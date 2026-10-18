@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use ansi_term::Color;
 use clap::parser::ValueSource;
 use regex::Regex;
 use syntect::highlighting::Style as SyntectStyle;
@@ -48,6 +49,9 @@ pub struct Config {
     pub color_only: bool,
     pub commit_regex: Regex,
     pub commit_style: Style,
+    pub commit_color: Option<Color>,
+    pub commit_meta_header_bg: Option<Color>,
+    pub commit_meta_other_bg: Option<Color>,
     pub cwd_of_delta_process: Option<PathBuf>,
     pub cwd_of_user_shell_process: Option<PathBuf>,
     pub cwd_relative_to_repo_root: Option<String>,
@@ -64,6 +68,8 @@ pub struct Config {
     pub file_regex_replacement: Option<RegexReplacement>,
     pub right_arrow: String,
     pub file_style: Style,
+    pub file_color: Option<Color>,
+    pub file_bg: Option<Color>,
     pub git_config: Option<GitConfig>,
     pub git_minus_style: Style,
     pub git_plus_style: Style,
@@ -85,6 +91,8 @@ pub struct Config {
     pub hunk_header_style_include_line_number: HunkHeaderIncludeLineNumber,
     pub hunk_header_style_include_code_fragment: HunkHeaderIncludeCodeFragment,
     pub hunk_header_style: Style,
+    pub hunk_color: Option<Color>,
+    pub hunk_bg: Option<Color>,
     pub hunk_label: String,
     pub hyperlinks_commit_link_format: Option<String>,
     pub hyperlinks_file_link_format: String,
@@ -237,6 +245,18 @@ impl From<cli::Opt> for Config {
             _ => fatal("Invalid option for line-fill-method: Expected \"ansi\" or \"spaces\"."),
         };
 
+        let true_color = opt.computed.true_color;
+        let git_config = opt.git_config.as_ref();
+        let commit_color = optional_color(&opt.commit_color, true_color, git_config);
+        let commit_meta_header_bg =
+            optional_color(&opt.commit_meta_header_background, true_color, git_config);
+        let commit_meta_other_bg =
+            optional_color(&opt.commit_meta_other_background, true_color, git_config);
+        let file_color = optional_color(&opt.file_color, true_color, git_config);
+        let file_bg = optional_color(&opt.file_background, true_color, git_config);
+        let hunk_color = optional_color(&opt.hunk_color, true_color, git_config);
+        let hunk_bg = optional_color(&opt.hunk_background, true_color, git_config);
+
         let side_by_side_data = side_by_side::SideBySideData::new_sbs(
             &opt.computed.decorations_width,
             &opt.computed.available_terminal_width,
@@ -294,6 +314,9 @@ impl From<cli::Opt> for Config {
             blame_timestamp_format: opt.blame_timestamp_format,
             blame_timestamp_output_format: opt.blame_timestamp_output_format,
             commit_style: styles["commit-style"],
+            commit_color,
+            commit_meta_header_bg,
+            commit_meta_other_bg,
             color_only: opt.color_only,
             commit_regex,
             cwd_of_delta_process,
@@ -316,6 +339,8 @@ impl From<cli::Opt> for Config {
             right_arrow,
             hunk_label,
             file_style: styles["file-style"],
+            file_color,
+            file_bg,
             git_config: opt.git_config,
             grep_context_line_style: styles["grep-context-line-style"],
             grep_file_style: styles["grep-file-style"],
@@ -332,6 +357,8 @@ impl From<cli::Opt> for Config {
             hunk_header_file_style: styles["hunk-header-file-style"],
             hunk_header_line_number_style: styles["hunk-header-line-number-style"],
             hunk_header_style: styles["hunk-header-style"],
+            hunk_color,
+            hunk_bg,
             hunk_header_style_include_file_path: if opt
                 .hunk_header_style
                 .split(' ')
@@ -438,6 +465,16 @@ impl From<cli::Opt> for Config {
             zero_style: styles["zero-style"],
         }
     }
+}
+
+fn optional_color(
+    value: &Option<String>,
+    true_color: bool,
+    git_config: Option<&GitConfig>,
+) -> Option<Color> {
+    value
+        .as_ref()
+        .and_then(|color| color::parse_color(color, true_color, git_config))
 }
 
 fn make_blame_palette(blame_palette: Option<String>, mode: ColorMode) -> Vec<String> {

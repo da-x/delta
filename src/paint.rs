@@ -384,6 +384,16 @@ impl<'p> Painter<'p> {
         }
     }
 
+    /// Paint `text` with `style`. When `extend_background` is set and the style has a background,
+    /// extend that background to the end of the terminal line.
+    pub fn paint_preserved_line(text: &str, style: Style, extend_background: bool) -> String {
+        let mut line = style.paint(text).to_string();
+        if extend_background && style.get_background_color().is_some() {
+            Painter::right_fill_background_color(&mut line, style);
+        }
+        line
+    }
+
     /// Emit line with ANSI sequences that extend the background color to the terminal width.
     pub fn right_fill_background_color(line: &mut String, fill_style: Style) {
         // HACK: How to properly incorporate the ANSI_CSI_CLEAR_TO_EOL into ansi_strings?

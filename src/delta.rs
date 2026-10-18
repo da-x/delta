@@ -112,6 +112,9 @@ pub struct StateMachine<'a> {
     pub handled_diff_header_header_line_file_pair: Option<(String, String)>,
     pub blame_key_colors: HashMap<String, String>,
     pub minus_line_counter: AmbiguousDiffMinusCounter,
+    /// Set once a blank line has been seen inside a commit header. Lines after that, including
+    /// the commit message, are not painted by the commit-meta background options.
+    pub commit_meta_past_header: bool,
 }
 
 pub fn delta<I>(lines: ByteLines<I>, writer: &mut dyn Write, config: &Config) -> std::io::Result<()>
@@ -146,6 +149,7 @@ impl<'a> StateMachine<'a> {
             config,
             blame_key_colors: HashMap::new(),
             minus_line_counter: AmbiguousDiffMinusCounter::not_needed(),
+            commit_meta_past_header: false,
         }
     }
 
@@ -250,6 +254,40 @@ impl<'a> StateMachine<'a> {
 
     /// Emit unchanged any line that delta does not handle.
     pub fn emit_line_unchanged(&mut self) -> std::io::Result<bool> {
+        if matches!(self.state, State::CommitMeta) {
+            if self.line.trim().is_empty() {
+                self.commit_meta_past_header = true;
+            } else if !self.commit_meta_past_header
+                && (self.config.commit_color.is_some()
+                    || self.config.commit_meta_header_bg.is_some()
+                    || self.config.commit_meta_other_bg.is_some())
+            {
+                let background = self
+                    .config
+                    .commit_meta_other_bg
+                    .or(self.config.commit_meta_header_bg);
+                let style = self
+                    .config
+                    .commit_style
+                    .with_overlay_colors(self.config.commit_color, background);
+                let extend =
+                    background.is_some() && self.config.background_color_extends_to_terminal_width;
+                let line = self.line.clone();
+                return self.emit_painted_header_line(&line, style, extend);
+            }
+        } else if matches!(self.state, State::DiffHeader(_))
+            && (self.config.file_color.is_some() || self.config.file_bg.is_some())
+        {
+            let style = self
+                .config
+                .file_style
+                .with_overlay_colors(self.config.file_color, self.config.file_bg);
+            let extend = self.config.file_bg.is_some()
+                && self.config.background_color_extends_to_terminal_width;
+            let line = self.line.clone();
+            return self.emit_painted_header_line(&line, style, extend);
+        }
+
         self.painter.emit()?;
         writeln!(
             self.painter.writer,
@@ -258,6 +296,19 @@ impl<'a> StateMachine<'a> {
         )?;
         let handled_line = true;
         Ok(handled_line)
+    }
+
+    /// Paint one preserved header line. `text` is the line with ANSI codes already stripped.
+    fn emit_painted_header_line(
+        &mut self,
+        text: &str,
+        style: crate::style::Style,
+        extend_background: bool,
+    ) -> std::io::Result<bool> {
+        self.painter.emit()?;
+        let painted = crate::paint::Painter::paint_preserved_line(text, style, extend_background);
+        writeln!(self.painter.writer, "{painted}")?;
+        Ok(true)
     }
 
     /// Should a handle_* function be called on this element?

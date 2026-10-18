@@ -7,6 +7,7 @@ use super::draw;
 use crate::config::Config;
 use crate::delta::{DiffType, Source, State, StateMachine};
 use crate::paint::Painter;
+use crate::style::DecorationStyle;
 use crate::{features, utils};
 
 // https://git-scm.com/docs/git-config#Documentation/git-config.txt-diffmnemonicPrefix
@@ -325,8 +326,38 @@ pub fn write_generic_diff_header_header_line(
     if config.file_style.is_omitted && !config.color_only {
         return Ok(());
     }
+    let style = config
+        .file_style
+        .with_overlay_colors(config.file_color, config.file_bg);
+    // A background on an undecorated header keeps the original line and fills to the terminal
+    // edge. Decorated headers keep the existing box/underline drawing, with the background
+    // overlaid on the text style.
+    if config.file_bg.is_some() && matches!(style.decoration_style, DecorationStyle::NoDecoration) {
+        if !config.color_only {
+            writeln!(painter.writer)?;
+        }
+        let text = if mode_info.is_empty() {
+            line.to_string()
+        } else {
+            format!("{line} ({mode_info})")
+        };
+        let painted = Painter::paint_preserved_line(
+            &text,
+            style,
+            config.background_color_extends_to_terminal_width,
+        );
+        crate::features::diff_line_metadata::write_with_header_osc(
+            painter.writer,
+            metadata_osc,
+            |w| writeln!(w, "{painted}"),
+        )?;
+        if !mode_info.is_empty() {
+            mode_info.clear();
+        }
+        return Ok(());
+    }
     let (mut draw_fn, pad, decoration_ansi_term_style) =
-        draw::get_draw_function(config.file_style.decoration_style);
+        draw::get_draw_function(style.decoration_style);
     if !config.color_only {
         // Maintain 1-1 correspondence between input and output lines.
         writeln!(painter.writer)?;
@@ -341,7 +372,7 @@ pub fn write_generic_diff_header_header_line(
                 &format!("{}{}", raw_line, if pad { " " } else { "" }),
                 mode_info,
                 &config.decorations_width,
-                config.file_style,
+                style,
                 decoration_ansi_term_style,
             )
         },
